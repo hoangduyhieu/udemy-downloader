@@ -1538,7 +1538,7 @@ def download_aria(url, file_dir, filename):
     """
     @author Puyodead1
     """
-    args = ["aria2c", url, "-o", filename, "-d", file_dir, "-j16", "-s20", "-x16", "-c", "--auto-file-renaming=false", "--summary-interval=0"]
+    args = ["aria2c", url, "-o", filename, "-d", file_dir, "-j16", "-s20", "-x16", "-c", "--auto-file-renaming=false", "--summary-interval=0", "--follow-torrent=false"]
     if disable_ipv6:
         args.append("--disable-ipv6")
     process = subprocess.Popen(args)
