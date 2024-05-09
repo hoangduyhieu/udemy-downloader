@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from pathvalidate import sanitize_filename
 from requests.exceptions import ConnectionError as conn_error
 from tqdm import tqdm
+from unidecode import unidecode
 
 from constants import *
 from tls import SSLCiphers
@@ -1317,80 +1318,8 @@ def handle_segments(url, format_id, video_title, output_path, lecture_file_name,
     # for french language among others, this characters cause problems with shaka-packager resulting in decryption failure
     # https://github.com/Puyodead1/udemy-downloader/issues/137
     # Thank to cutecat !
-    lecture_file_name = (
-        lecture_file_name.replace("é", "e")
-        .replace("è", "e")
-        .replace("à", "a")
-        .replace("À", "A")
-        .replace("à", "a")
-        .replace("Á", "A")
-        .replace("á", "a")
-        .replace("Â", "a")
-        .replace("â", "a")
-        .replace("Ã", "A")
-        .replace("ã", "a")
-        .replace("Ä", "A")
-        .replace("ä", "a")
-        .replace("Å", "A")
-        .replace("å", "a")
-        .replace("Æ", "AE")
-        .replace("æ", "ae")
-        .replace("Ç", "C")
-        .replace("ç", "c")
-        .replace("Ð", "D")
-        .replace("ð", "o")
-        .replace("È", "E")
-        .replace("è", "e")
-        .replace("É", "e")
-        .replace("Ê", "e")
-        .replace("ê", "e")
-        .replace("Ë", "E")
-        .replace("ë", "e")
-        .replace("Ì", "I")
-        .replace("ì", "i")
-        .replace("Í", "I")
-        .replace("í", "I")
-        .replace("Î", "I")
-        .replace("î", "i")
-        .replace("Ï", "I")
-        .replace("ï", "i")
-        .replace("Ñ", "N")
-        .replace("ñ", "n")
-        .replace("Ò", "O")
-        .replace("ò", "o")
-        .replace("Ó", "O")
-        .replace("ó", "o")
-        .replace("Ô", "O")
-        .replace("ô", "o")
-        .replace("Õ", "O")
-        .replace("õ", "o")
-        .replace("Ö", "o")
-        .replace("ö", "o")
-        .replace("œ", "oe")
-        .replace("Œ", "OE")
-        .replace("Ø", "O")
-        .replace("ø", "o")
-        .replace("ß", "B")
-        .replace("Ù", "U")
-        .replace("ù", "u")
-        .replace("Ú", "U")
-        .replace("ú", "u")
-        .replace("Û", "U")
-        .replace("û", "u")
-        .replace("Ü", "U")
-        .replace("ü", "u")
-        .replace("Ý", "Y")
-        .replace("ý", "y")
-        .replace("Þ", "P")
-        .replace("þ", "P")
-        .replace("Ÿ", "Y")
-        .replace("ÿ", "y")
-        .replace("%", "")
-        # commas cause problems with shaka-packager resulting in decryption failure
-        .replace(",", "")
-        .replace("–", "-")
-        .replace(".mp4", "")
-    )
+    lecture_file_name = unidecode(lecture_file_name)
+        
 
     video_filepath_enc = lecture_file_name + ".encrypted.mp4"
     audio_filepath_enc = lecture_file_name + ".encrypted.m4a"
