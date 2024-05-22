@@ -258,7 +258,7 @@ def pre_run():
             concurrent_downloads = 10
         elif concurrent_downloads > 30:
             # if the user gave a number thats greater than 30, set cc to the max of 30
-            concurrent_downloads = 30
+            concurrent_downloads = 300
     if args.disable_ipv6:
         disable_ipv6 = args.disable_ipv6
     if args.load_from_file:
