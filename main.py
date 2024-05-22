@@ -44,7 +44,7 @@ portal_name = None
 course_name = None
 keep_vtt = False
 skip_hls = False
-concurrent_downloads = 1000
+concurrent_downloads = 10000
 disable_ipv6 = False
 save_to_file = None
 load_from_file = None
@@ -255,10 +255,10 @@ def pre_run():
 
         if concurrent_downloads <= 0:
             # if the user gave a number that is less than or equal to 0, set cc to default of 10
-            concurrent_downloads = 1000
+            concurrent_downloads = 10000
         elif concurrent_downloads > 30:
             # if the user gave a number thats greater than 30, set cc to the max of 30
-            concurrent_downloads = 1000
+            concurrent_downloads = 10000
     if args.disable_ipv6:
         disable_ipv6 = args.disable_ipv6
     if args.load_from_file:
