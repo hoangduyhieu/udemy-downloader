@@ -785,11 +785,7 @@ class Udemy:
             while _next:
                 logger.info("> Downloading course information.. ")
                 try:
-                     resp = self.session._get(_next)
-                    if not resp.ok:
-                        logger.error(f"Failed to fetch a page, will retry")
-                        continue
-                    resp = resp.json()
+                     resp = self.session._get(_next).json()
                 except conn_error as error:
                     logger.fatal(f"Udemy Says: Connection error, {error}")
                     time.sleep(0.8)
