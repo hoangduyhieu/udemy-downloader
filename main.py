@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import IO
 
 import browser_cookie3
+import demoji
 import m3u8
 import requests
 import yt_dlp
@@ -44,7 +45,7 @@ portal_name = None
 course_name = None
 keep_vtt = False
 skip_hls = False
-concurrent_downloads = 10
+concurrent_downloads = 10000
 disable_ipv6 = False
 save_to_file = None
 load_from_file = None
@@ -255,10 +256,10 @@ def pre_run():
 
         if concurrent_downloads <= 0:
             # if the user gave a number that is less than or equal to 0, set cc to default of 10
-            concurrent_downloads = 10
+            concurrent_downloads = 10000
         elif concurrent_downloads > 30:
             # if the user gave a number thats greater than 30, set cc to the max of 30
-            concurrent_downloads = 30
+            concurrent_downloads = 10000
     if args.disable_ipv6:
         disable_ipv6 = args.disable_ipv6
     if args.load_from_file:
@@ -1270,18 +1271,18 @@ def mux_process(video_title, video_filepath, audio_filepath, output_path):
     transcode = "-hwaccel cuda -hwaccel_output_format cuda" if use_nvenc else ""
     if os.name == "nt":
         if use_h265:
-            command = 'ffmpeg {} -y -i "{}" -i "{}" -c:v {} -vtag hvc1 -crf {} -preset {} -c:a copy -fflags +bitexact -map_metadata -1 -metadata title="{}" "{}"'.format(
+            command = 'ffmpeg -loglevel panic {} -y -i "{}" -i "{}" -c:v {} -vtag hvc1 -crf {} -preset {} -c:a copy -fflags +bitexact -map_metadata -1 -metadata title="{}" "{}"'.format(
                 transcode, video_filepath, audio_filepath, codec, h265_crf, h265_preset, video_title, output_path
             )
         else:
-            command = 'ffmpeg -y -i "{}" -i "{}" -c:v copy -c:a copy -fflags +bitexact -map_metadata -1 -metadata title="{}" "{}"'.format(video_filepath, audio_filepath, video_title, output_path)
+            command = 'ffmpeg -loglevel panic -y -i "{}" -i "{}" -c:v copy -c:a copy -fflags +bitexact -map_metadata -1 -metadata title="{}" "{}"'.format(video_filepath, audio_filepath, video_title, output_path)
     else:
         if use_h265:
-            command = 'nice -n 7 ffmpeg {} -y -i "{}" -i "{}" -c:v libx265 -vtag hvc1 -crf {} -preset {} -c:a copy -fflags +bitexact -map_metadata -1 -metadata title="{}" "{}"'.format(
+            command = 'nice -n 7 ffmpeg -loglevel panic  {} -y -i "{}" -i "{}" -c:v libx265 -vtag hvc1 -crf {} -preset {} -c:a copy -fflags +bitexact -map_metadata -1 -metadata title="{}" "{}"'.format(
                 transcode, video_filepath, audio_filepath, codec, h265_crf, h265_preset, video_title, output_path
             )
         else:
-            command = 'nice -n 7 ffmpeg -y -i "{}" -i "{}" -c:v copy -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{}" "{}"'.format(
+            command = 'nice -n 7 ffmpeg -loglevel panic  -y -i "{}" -i "{}" -c:v copy -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{}" "{}"'.format(
                 video_filepath, audio_filepath, video_title, output_path
             )
 
@@ -1394,6 +1395,7 @@ def handle_segments(url, format_id, video_title, output_path, lecture_file_name,
         .replace(",", "")
         .replace("–", "-")
         .replace(".mp4", "")
+        .replace("$", "")
     )
 
     video_filepath_enc = lecture_file_name + ".encrypted.mp4"
@@ -1542,7 +1544,7 @@ def download_aria(url, file_dir, filename):
     """
     @author Puyodead1
     """
-    args = ["aria2c", url, "-o", filename, "-d", file_dir, "-j16", "-s20", "-x16", "-c", "--auto-file-renaming=false", "--summary-interval=0"]
+    args = ["aria2c", url, "-o", filename, "-d", file_dir, "-j16", "-s20", "-x16", "-c", "--auto-file-renaming=false", "--summary-interval=0", "--follow-torrent=false"]
     if disable_ipv6:
         args.append("--disable-ipv6")
     process = subprocess.Popen(args)
