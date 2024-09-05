@@ -1822,10 +1822,10 @@ def main():
         logger.fatal("> FFMPEG is missing from your system or path!")
         sys.exit(1)
 
-    shaka_ret_val = check_for_shaka()
-    if not shaka_ret_val and not skip_lectures:
-        logger.fatal("> Shaka Packager is missing from your system or path!")
-        sys.exit(1)
+    # shaka_ret_val = check_for_shaka()
+    # if not shaka_ret_val and not skip_lectures:
+    #     logger.fatal("> Shaka Packager is missing from your system or path!")
+    #     sys.exit(1)
 
     if load_from_file:
         logger.info("> 'load_from_file' was specified, data will be loaded from json files instead of fetched")
