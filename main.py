@@ -742,35 +742,21 @@ class Udemy:
                 {"quiet": True, "no_warnings": True, "allow_unplayable_formats": True, "enable_file_urls": True}
             )
             results = ytdl.extract_info(mpd_path.as_uri(), download=False, force_generic_extractor=True)
-            seen = set()
-            formats = results.get("formats")
-
             format_id = results.get("format_id")
-            best_audio_format_id = format_id.split("+")[1]
-            for f in formats:
-                if "video" in f.get("format_note"):
-                    # is a video stream
-                    format_id = f.get("format_id")
-                    extension = f.get("ext")
-                    height = f.get("height")
-                    width = f.get("width")
+            extension = results.get("ext")
+            height = results.get("height")
+            width = results.get("width")
 
-                    if height and height not in seen:
-                        seen.add(height)
-                        _temp.append(
-                            {
-                                "type": "dash",
-                                "height": str(height),
-                                "width": str(width),
-                                "format_id": f"{format_id},{best_audio_format_id}",
-                                "extension": extension,
-                                "download_url": f.get("manifest_url"),
-                            }
-                        )
-                else:
-                    # unknown format type
-                    # logger.debug(f"Unknown format type : {f}")
-                    continue
+            _temp.append(
+                {
+                    "type": "dash",
+                    "height": str(height),
+                    "width": str(width),
+                    "format_id": format_id.replace("+", ","),
+                    "extension": extension,
+                    "download_url": mpd_path.as_uri(),
+                }
+            )
         except Exception:
             logger.exception(f"Error fetching MPD streams")
 
@@ -998,8 +984,7 @@ class Udemy:
             if asset_type == "article":
                 retVal.extend(self._extract_article(asset, index))
             elif asset_type == "video":
-                if isinstance(supp_assets, list) and len(supp_assets) > 0:
-                    retVal.extend(self._extract_supplementary_assets(supp_assets, index))
+                pass
             elif asset_type == "e-book":
                 retVal.extend(self._extract_ebook(asset, index))
             elif asset_type == "file":
@@ -1010,6 +995,9 @@ class Udemy:
                 retVal.extend(self._extract_audio(asset, index))
             else:
                 logger.warning(f"Unknown asset type: {asset_type}")
+
+            if isinstance(supp_assets, list) and len(supp_assets) > 0:
+                retVal.extend(self._extract_supplementary_assets(supp_assets, index))
 
         if asset != None:
             stream_urls = asset.get("stream_urls")
@@ -1194,14 +1182,14 @@ def mux_process(
 
     if os.name == "nt":
         if use_h265:
-            command = f'ffmpeg -loglevel panic {transcode} -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c:v {codec} -vtag hvc1 -crf {h265_crf} -preset {h265_preset} -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
+            command = f'ffmpeg {transcode} -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c:v {codec} -vtag hvc1 -crf {h265_crf} -preset {h265_preset} -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
         else:
-            command = f'ffmpeg -loglevel panic -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
+            command = f'ffmpeg -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
     else:
         if use_h265:
-            command = f'nice -n 7 ffmpeg -loglevel panic {transcode} -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c:v {codec} -vtag hvc1 -crf {h265_crf} -preset {h265_preset} -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
+            command = f'nice -n 7 ffmpeg {transcode} -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c:v {codec} -vtag hvc1 -crf {h265_crf} -preset {h265_preset} -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
         else:
-            command = f'nice -n 7 ffmpeg -loglevel panic -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
+            command = f'nice -n 7 ffmpeg -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
 
     process = subprocess.Popen(command, shell=True)
     log_subprocess_output("FFMPEG-STDOUT", process.stdout)
@@ -1312,8 +1300,8 @@ def handle_segments(url, format_id, lecture_id, video_title, output_path, chapte
         logger.info("> Cleaning up temporary files...")
         os.remove(video_filepath_enc)
         os.remove(audio_filepath_enc)
-    except Exception as e:
-        logger.exception(f"Muxing error: {e}")
+    except Exception:
+        logger.exception(f"Error: ")
     finally:
         os.chdir(HOME_DIR)
         # if the url is a file url, we need to remove the file after we're done with it
