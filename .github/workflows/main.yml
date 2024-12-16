@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Change Python version
+        run: |
+          $path = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+          $path = $path -replace ";C:\\hostedtoolcache\\windows\\Python\\3.9.13\\x64\\Scripts", ""
+          $path = $path -replace ";C:\\hostedtoolcache\\windows\\Python\\3.9.13\\x64", ""
+          $path += ";${{ runner.tool_cache }}\Python\3.12.8\x64\Scripts;${{ runner.tool_cache }}\Python\3.12.8\x64"
+          [System.Environment]::SetEnvironmentVariable("Path", $path, "Machine")
+
+      - name: Set up udemy-downloader
+        run: |
+          # Change to the C:\ directory
+          cd C:\
+
+          # Clone the udemy-downloader repository
+          git clone https://github.com/hoangduyhieu/udemy-downloader.git
+
+          # Create the 'dependencies' directory
+          New-Item -ItemType Directory -Path ".\udemy-downloader\dependencies"
+
+          # Download necessary tools: ffmpeg, aria2c
+          (New-Object System.Net.WebClient).DownloadFile("https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip", "$PWD\ffmpeg.zip")
+          (New-Object System.Net.WebClient).DownloadFile("https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip", "$PWD\aria2.zip")
+
+          # Extract and delete each archive in the list
+          $files = @("ffmpeg.zip", "aria2.zip")
+          foreach ($file in $files) {
+              Expand-Archive -Path ".\$file" -DestinationPath ".\udemy-downloader\dependencies" -Force
+              Remove-Item -Path ".\$file"
+          }
+
+          # Install required Python packages 
+          # py -m pip install -r .\udemy-downloader\requirements.txt
+          py -m pip install git+https://github.com/Puyodead1/udemy-downloader@refactor --no-warn-script-location
+
+      - name: Set Env and Download
+        run: |
+          # Change to the C:\udemy-downloader directory
+          cd C:\udemy-downloader
+
+          # Add dependencies to the system PATH
+          $path = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+          $path += ";$PWD\dependencies\ffmpeg-master-latest-win64-gpl\bin"
+          $path += ";$PWD\dependencies\aria2-1.37.0-win-64bit-build1"
+          [System.Environment]::SetEnvironmentVariable("Path", $path, "Machine")
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+
+          # Set Python encoding to UTF-8
+          $Env:PYTHONIOENCODING = "utf-8"
+
+          # Create the 'devices' directory
+          New-Item -ItemType Directory -Path "devices" -Force
+
+          # Download wvd file to 'devices'
+          Invoke-WebRequest -Uri "https://drive.google.com/uc?id=16NSYJt1prGVBkNEYMRoSThIK-v-bcLdu" -OutFile "$PWD\devices\device.wvd"
+
+          # # Option for download txt file
+          # Invoke-WebRequest -Uri "https://drive.google.com/uc?id=1wqysOG6b9Ps9Gk6y-XhLkboJDG6DYzRL" -OutFile "cookies.txt"
+
+          # Option for download docs file
+          $url = "https://docs.google.com/document/d/1vESIymKDTwYMlsvAGCaelc7e-qM1ZUUPG5a_D7RNQTI/export?format=txt"
+          $outputPath = "C:\udemy-downloader\cookies.txt"
+
+          # Download the file as a string 
+          $response = Invoke-WebRequest -Uri $url -UseBasicParsing
+          $content = $response.Content
+
+          # Remove BOM if it exists (character \uFEFF at the beginning of the string)
+          if ($content.StartsWith([char]0xFEFF)) {
+          $content = $content.Substring(1)
+          }
+
+          # Replace 8 SPACE characters with a TAB
+          $content = $content -replace ' {8}', "`t"
+
+          # Save content to a file
+          Set-Content -Path $outputPath -Value $content
+
+          # Download the Udemy course
+          udl https://www.udemy.com/course/master-the-javascript-best-practices/learn --quality 1080 --lang en --download-assets --download-captions --download-quizzes --subscription-course --browser file --device device
+          udl https://www.udemy.com/course/master-the-javascript-best-practices/learn --skip-lectures --lang vi --download-captions --subscription-course --browser file --device device
+
+      - name: Config rclone and auto sync data
+        run: |
+          # Change to the C:\ directory
+          cd C:\
+
+          # Download rclone ZIP archive
+          (New-Object System.Net.WebClient).DownloadFile(
+            "https://downloads.rclone.org/v1.68.2/rclone-v1.68.2-windows-amd64.zip",
+            "$PWD\rclone.zip"
+          )
+
+          # Extract and delete the ZIP file
+          tar -xf .\rclone.zip
+          Remove-Item -Path ".\rclone.zip"
+
+          # Create the rclone config directory in %APPDATA%
+          New-Item -Path "$env:APPDATA\rclone" -ItemType Directory
+
+          # Create rclone.conf file with specific content
+          $configContent = @"
+          [ggHieu]
+          type = drive
+          client_id = 29349900859-ne8efjgbh2r3qhdop51o3abt61sr8515.apps.googleusercontent.com
+          client_secret = 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
+          scope = drive
+          token = {"access_token":"ya29.a0AeDClZC1WI4cnkJSaxhWPvbGQvQAP_1o8VIQsugiEYESN5BV-niR5X0Ss54ca1sJ2izLkyRom5zocD7Z1DZzlrRRcjySh92wQa3FKtFoglreFQKp4AbQfNfqa3y0_SS9j9vutd0arU2GJcDwO8NmZzgWqZBpOxQrNKhbWZ_BaCgYKAZcSARISFQHGX2MicVh23gmIE1aCfIEzW1fF7w0175","token_type":"Bearer","refresh_token":"1//0e1-HXBhbQJW9CgYIARAAGA4SNwF-L9IrxXoLjtx0boZ_qvbxnk5KEa2eA9gsIEm29zLBVtY7d0eOYgg7QEOWPCIvNUYCer5iSpI","expiry":"2024-10-26T00:29:40.4835212+07:00"}
+          team_drive =
+          "@
+
+          # Write content to rclone.conf
+          $configContent | Out-File -FilePath "$env:APPDATA\rclone\rclone.conf" -Encoding UTF8
+
+          # Sync local files to the remote with progress output
+          $dir = Get-ChildItem -Path ".\rclone*" -Directory
+          & "$($dir.FullName)\rclone.exe" -P copy --checksum --checkers 10 --transfers 10 "$PWD\udemy-downloader\downloads" "ggHieu:Course"
