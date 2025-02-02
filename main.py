@@ -60,6 +60,10 @@ use_nvenc = False
 browser = None
 cj = None
 use_continuous_lecture_numbers = False
+start_chapter = None
+end_chapter = None 
+start_lecture = None
+end_lecture = None
 
 
 def deEmojify(inputStr: str):
@@ -76,7 +80,7 @@ def log_subprocess_output(prefix: str, pipe: IO[bytes]):
 
 # this is the first function that is called, we parse the arguments, setup the logger, and ensure that required directories exist
 def pre_run():
-    global dl_assets, dl_captions, dl_quizzes, skip_lectures, caption_locale, quality, bearer_token, course_name, keep_vtt, skip_hls, concurrent_downloads, load_from_file, save_to_file, bearer_token, course_url, info, logger, keys, id_as_course_name, LOG_LEVEL, use_h265, h265_crf, h265_preset, use_nvenc, browser, is_subscription_course, DOWNLOAD_DIR, use_continuous_lecture_numbers
+    global dl_assets, dl_captions, dl_quizzes, skip_lectures, caption_locale, quality, bearer_token, course_name, keep_vtt, skip_hls, concurrent_downloads, load_from_file, save_to_file, bearer_token, course_url, info, logger, keys, id_as_course_name, LOG_LEVEL, use_h265, h265_crf, h265_preset, use_nvenc, browser, is_subscription_course, DOWNLOAD_DIR, use_continuous_lecture_numbers, start_chapter, end_chapter, start_lecture, end_lecture
 
     # make sure the logs directory exists
     if not os.path.exists(LOG_DIR_PATH):
@@ -105,7 +109,7 @@ def pre_run():
         "--lang",
         dest="lang",
         type=str,
-        help="The language to download for captions, specify 'all' to download all captions (Default is 'en')",
+        help="Language codes to download for captions, separate multiple languages with commas (e.g. en,es) or specify 'all' to download all captions (Default is 'en')",
     )
     parser.add_argument(
         "-cd",
@@ -233,13 +237,39 @@ def pre_run():
         action="store_true",
         help="Use continuous lecture numbering instead of per-chapter",
     )
+    parser.add_argument(
+        "--start-chapter",
+        dest="start_chapter", 
+        type=int,
+        help="Start downloading from this chapter number"
+    )
+    parser.add_argument(
+        "--start-lecture",
+        dest="start_lecture",
+        type=int, 
+        help="Start downloading from this lecture number within the start chapter"
+    )
+    parser.add_argument(
+        "--end-chapter",
+        dest="end_chapter",
+        type=int,
+        help="Stop downloading at this chapter number"
+    )
+    parser.add_argument(
+        "--end-lecture", 
+        dest="end_lecture",
+        type=int,
+        help="Stop downloading at this lecture number within the end chapter"
+    )
     # parser.add_argument("-v", "--version", action="version", version="You are running version {version}".format(version=__version__))
 
     args = parser.parse_args()
     if args.download_assets:
         dl_assets = True
     if args.lang:
-        caption_locale = args.lang
+        caption_locale = args.lang.split(',')  # Now stores a list of languages
+    else:
+        caption_locale = ["en"]  # Default to a list with just "en"
     if args.download_captions:
         dl_captions = True
     if args.download_quizzes:
@@ -303,6 +333,20 @@ def pre_run():
         DOWNLOAD_DIR = os.path.abspath(args.out)
     if args.use_continuous_lecture_numbers:
         use_continuous_lecture_numbers = args.use_continuous_lecture_numbers
+    if args.start_chapter:
+        start_chapter = args.start_chapter
+    if args.start_lecture:
+        if not args.start_chapter:
+            logger.error("When using --start-lecture please provide --start-chapter")
+            sys.exit(1)
+        start_lecture = args.start_lecture
+    if args.end_chapter:
+        end_chapter = args.end_chapter
+    if args.end_lecture:
+        if not args.end_chapter:
+            logger.error("When using --end-lecture please provide --end-chapter")
+            sys.exit(1)
+        end_lecture = args.end_lecture
 
     # setup a logger
     logger = logging.getLogger(__name__)
@@ -791,9 +835,9 @@ class Udemy:
         )
         url = COURSE_SEARCH.format(portal_name=portal_name, course_name=course_name)
         try:
-            webpage = self.session._get(url).content
-            webpage = webpage.decode("utf8", "ignore")
-            webpage = json.loads(webpage)
+            resp = self.session._get(url).content
+            resp = resp.decode("utf8", "ignore")
+            resp = json.loads(resp)
         except conn_error as error:
             logger.fatal(f"Connection error: {error}")
             time.sleep(0.8)
@@ -803,7 +847,7 @@ class Udemy:
             time.sleep(0.8)
             sys.exit(1)
         else:
-            results = webpage.get("results", [])
+            results = resp.get("results", [])
         return results
 
     def _extract_course_info_json(self, url, course_id):
@@ -868,7 +912,7 @@ class Udemy:
         results = []
         try:
             url = MY_COURSES_URL.format(portal_name=portal_name)
-            webpage = self.session._get(url).json()
+            resp = self.session._get(url).json()
         except conn_error as error:
             logger.fatal(f"Connection error: {error}")
             time.sleep(0.8)
@@ -878,14 +922,14 @@ class Udemy:
             time.sleep(0.8)
             sys.exit(1)
         else:
-            results = webpage.get("results", [])
+            results = resp.get("results", [])
         return results
 
     def _subscribed_collection_courses(self, portal_name):
         url = COLLECTION_URL.format(portal_name=portal_name)
         courses_lists = []
         try:
-            webpage = self.session._get(url).json()
+            resp = self.session._get(url).json()
         except conn_error as error:
             logger.fatal(f"Connection error: {error}")
             time.sleep(0.8)
@@ -895,7 +939,7 @@ class Udemy:
             time.sleep(0.8)
             sys.exit(1)
         else:
-            results = webpage.get("results", [])
+            results = resp.get("results", [])
             if results:
                 [courses_lists.extend(courses.get("courses", [])) for courses in results if courses.get("courses", [])]
         return courses_lists
@@ -905,7 +949,7 @@ class Udemy:
         try:
             url = MY_COURSES_URL.format(portal_name=portal_name)
             url = f"{url}&is_archived=true"
-            webpage = self.session._get(url).json()
+            resp = self.session._get(url).json()
         except conn_error as error:
             logger.fatal(f"Connection error: {error}")
             time.sleep(0.8)
@@ -915,7 +959,7 @@ class Udemy:
             time.sleep(0.8)
             sys.exit(1)
         else:
-            results = webpage.get("results", [])
+            results = resp.get("results", [])
         return results
 
     def _extract_subscription_course_info(self, url):
@@ -1584,6 +1628,32 @@ def process_coding_assignment(quiz, lecture, chapter_dir):
             f.write(html)
 
 
+def is_in_chapter_range(chapter_index):
+    """Check if the chapter is within the specified range"""
+    if start_chapter and chapter_index < start_chapter:
+        return False
+    if end_chapter and chapter_index > end_chapter:
+        return False
+    return True
+
+def is_in_lecture_range(chapter_index, lecture_index):
+    """Check if the lecture is within the specified range"""
+    # If outside chapter range, lecture is out of range
+    if not is_in_chapter_range(chapter_index):
+        return False
+        
+    # If in start chapter, check start lecture
+    if start_chapter and chapter_index == start_chapter and start_lecture:
+        if lecture_index < start_lecture:
+            return False
+            
+    # If in end chapter, check end lecture  
+    if end_chapter and chapter_index == end_chapter and end_lecture:
+        if lecture_index > end_lecture:
+            return False
+            
+    return True
+
 def parse_new(udemy: Udemy, udemy_object: dict):
     total_chapters = udemy_object.get("total_chapters")
     total_lectures = udemy_object.get("total_lectures")
@@ -1598,6 +1668,11 @@ def parse_new(udemy: Udemy, udemy_object: dict):
     for chapter in udemy_object.get("chapters"):
         chapter_title = chapter.get("chapter_title")
         chapter_index = chapter.get("chapter_index")
+        
+        # Skip if chapter not in range
+        if not is_in_chapter_range(chapter_index):
+            continue
+            
         chapter_dir = os.path.join(course_dir, chapter_title)
         if not os.path.exists(chapter_dir):
             os.mkdir(chapter_dir)
@@ -1614,7 +1689,11 @@ def parse_new(udemy: Udemy, udemy_object: dict):
                 continue
 
             index = lecture.get("index")  # this is lecture_counter
-            # lecture_index = lecture.get("lecture_index")  # this is the raw object index from udemy
+            lecture_index = lecture.get("lecture_index")  # this is the raw object index from udemy
+            
+            # Skip if lecture not in range
+            if not is_in_lecture_range(chapter_index, lecture_index):
+                continue
 
             lecture_title = lecture.get("lecture_title")
             parsed_lecture = udemy._parse_lecture(lecture)
@@ -1655,7 +1734,8 @@ def parse_new(udemy: Udemy, udemy_object: dict):
                 logger.info("Processing {} caption(s)...".format(len(subtitles)))
                 for subtitle in subtitles:
                     lang = subtitle.get("language")
-                    if lang == caption_locale or caption_locale == "all":
+                    # Check if the language is in our list of requested languages or if we want all captions
+                    if lang in caption_locale or "all" in caption_locale:
                         process_caption(subtitle, lecture_title, chapter_dir)
 
             if dl_assets:
@@ -2004,3 +2084,4 @@ if __name__ == "__main__":
     pre_run()
     # run main program
     main()
+
