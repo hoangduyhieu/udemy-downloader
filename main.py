@@ -38,7 +38,7 @@ dl_assets = False
 dl_captions = False
 dl_quizzes = False
 skip_lectures = False
-caption_locale = "en"
+caption_locale = ["en"]  # Changed from string to list
 quality = None
 bearer_token = None
 portal_name = None
@@ -268,7 +268,9 @@ def pre_run():
     if args.download_assets:
         dl_assets = True
     if args.lang:
-        caption_locale = args.lang
+        caption_locale = args.lang.split(',')  # Now stores a list of languages
+    else:
+        caption_locale = ["en"]  # Default to a list with just "en"
     if args.download_captions:
         dl_captions = True
     if args.download_quizzes:
@@ -1695,7 +1697,8 @@ def parse_new(udemy: Udemy, udemy_object: dict):
                 logger.info("Processing {} caption(s)...".format(len(subtitles)))
                 for subtitle in subtitles:
                     lang = subtitle.get("language")
-                    if lang == caption_locale or caption_locale == "all":
+                    # Check if the language is in our list of requested languages or if we want all captions
+                    if lang in caption_locale or "all" in caption_locale:
                         process_caption(subtitle, lecture_title, chapter_dir)
 
             if dl_assets:
