@@ -45,7 +45,7 @@ portal_name = None
 course_name = None
 keep_vtt = False
 skip_hls = False
-concurrent_downloads = 10
+concurrent_downloads = 10000
 save_to_file = None
 load_from_file = None
 course_url = None
@@ -286,10 +286,10 @@ def pre_run():
 
         if concurrent_downloads <= 0:
             # if the user gave a number that is less than or equal to 0, set cc to default of 10
-            concurrent_downloads = 10
+            concurrent_downloads = 10000
         elif concurrent_downloads > 30:
             # if the user gave a number thats greater than 30, set cc to the max of 30
-            concurrent_downloads = 30
+            concurrent_downloads = 10000
     if args.load_from_file:
         load_from_file = args.load_from_file
     if args.save_to_file:
@@ -1216,14 +1216,14 @@ def mux_process(
 
     if os.name == "nt":
         if use_h265:
-            command = f'ffmpeg {transcode} -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c:v {codec} -vtag hvc1 -crf {h265_crf} -preset {h265_preset} -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
+            command = f'ffmpeg -loglevel panic {transcode} -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c:v {codec} -vtag hvc1 -crf {h265_crf} -preset {h265_preset} -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
         else:
-            command = f'ffmpeg -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
+            command = f'ffmpeg -loglevel panic -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
     else:
         if use_h265:
-            command = f'nice -n 7 ffmpeg {transcode} -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c:v {codec} -vtag hvc1 -crf {h265_crf} -preset {h265_preset} -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
+            command = f'nice -n 7 ffmpeg -loglevel panic {transcode} -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c:v {codec} -vtag hvc1 -crf {h265_crf} -preset {h265_preset} -c:a copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
         else:
-            command = f'nice -n 7 ffmpeg -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
+            command = f'nice -n 7 ffmpeg -loglevel panic -y {video_decryption_arg} -i "{video_filepath}" {audio_decryption_arg} -i "{audio_filepath}" -c copy -fflags +bitexact -shortest -map_metadata -1 -metadata title="{video_title}" "{output_path}"'
 
     process = subprocess.Popen(command, shell=True)
     log_subprocess_output("FFMPEG-STDOUT", process.stdout)
@@ -1742,7 +1742,7 @@ def parse_new(udemy: Udemy, udemy_object: dict):
                     elif asset_type == "external_link":
                         # write the external link to a shortcut file
                         file_path = os.path.join(chapter_dir, f"{filename}.url")
-                        file = open(file_path, "w")
+                        file = open(file_path, "w", encoding="utf-8")
                         file.write("[InternetShortcut]\n")
                         file.write(f"URL={download_url}")
                         file.close()
@@ -1854,12 +1854,7 @@ def main():
     if not ffmpeg_ret_val and not skip_lectures:
         logger.fatal("> FFMPEG is missing from your system or path!")
         sys.exit(1)
-
-    shaka_ret_val = check_for_shaka()
-    if not shaka_ret_val and not skip_lectures:
-        logger.fatal("> Shaka Packager is missing from your system or path!")
-        sys.exit(1)
-
+        
     if load_from_file:
         logger.info("> 'load_from_file' was specified, data will be loaded from json files instead of fetched")
     if save_to_file:
