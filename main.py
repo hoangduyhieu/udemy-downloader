@@ -344,13 +344,25 @@ def pre_run():
     # create a regular non-colored formatter for the log file
     file_formatter = logging.Formatter(LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
 
-    # create a handler for console logging
+    # create a handler for console logging with proper encoding
     stream = logging.StreamHandler()
     stream.setLevel(LOG_LEVEL)
     stream.setFormatter(console_formatter)
+    
+    # Try to set the console to use utf-8 encoding if on Windows
+    if os.name == 'nt':
+        # Set console to use utf-8 if possible
+        try:
+            import codecs
+            # Force stdout to use utf-8 encoding
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
+            # Alternatively, you can use 'backslashreplace' instead of 'replace'
+            # to show unicode escape sequences for unsupported characters
+        except Exception:
+            logger.warning("Could not set console encoding to UTF-8. Some characters may not display correctly.")
 
     # create a handler for file logging
-    file_handler = logging.FileHandler(LOG_FILE_PATH)
+    file_handler = logging.FileHandler(LOG_FILE_PATH, encoding='utf-8')
     file_handler.setFormatter(file_formatter)
 
     # construct the logger
@@ -1626,7 +1638,13 @@ def parse_new(udemy: Udemy, udemy_object: dict):
     logger.info(f"Chapter(s) ({total_chapters})")
     logger.info(f"Lecture(s) ({total_lectures})")
 
-    course_name = str(udemy_object.get("course_id")) if id_as_course_name else udemy_object.get("course_title")
+    # Use full_course_title if available, otherwise use course_title or course_id
+    if id_as_course_name:
+        course_name = str(udemy_object.get("course_id"))
+    else:
+        course_name = sanitize_filename(udemy_object.get("title"))
+        logger.info(f"> Using full course title for directory name: {course_name}")
+        
     course_dir = os.path.join(DOWNLOAD_DIR, course_name)
     if not os.path.exists(course_dir):
         os.mkdir(course_dir)
@@ -1878,6 +1896,8 @@ def main():
         if course_info and isinstance(course_info, dict):
             title = sanitize_filename(course_info.get("title"))
             course_title = course_info.get("published_title")
+            # Store the full title for directory naming
+            full_course_title = sanitize_filename(course_info.get("title"))
 
     logger.info("> Fetching course curriculum, this may take a minute...")
     if load_from_file:
@@ -1887,6 +1907,8 @@ def main():
         title = course_json.get("title")
         course_title = course_json.get("published_title")
         portal_name = course_json.get("portal_name")
+        # Get full title from saved file
+        full_course_title = title
     else:
         course_json = udemy._extract_course_curriculum(course_url, course_id, portal_name)
         course_json["portal_name"] = portal_name
@@ -1911,8 +1933,8 @@ def main():
         udemy_object = {}
         udemy_object["bearer_token"] = bearer_token
         udemy_object["course_id"] = course_id
-        udemy_object["title"] = title
-        udemy_object["course_title"] = course_title
+        udemy_object["title"] = title  # This holds the full readable course title
+        udemy_object["course_title"] = course_title  # This holds the URL slug
         udemy_object["chapters"] = []
         chapter_index_counter = -1
 
@@ -2033,6 +2055,9 @@ def main():
                 # remove "bearer_token" from the object before writing
                 udemy_object.pop("bearer_token")
                 udemy_object["portal_name"] = portal_name
+                # Ensure the full_course_title is saved in the JSON file
+                if "full_course_title" not in udemy_object and "title" in udemy_object:
+                    udemy_object["full_course_title"] = udemy_object["title"]
                 f.write(json.dumps(udemy_object))
             logger.info("> Saved parsed data to json")
 
